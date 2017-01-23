@@ -10,18 +10,8 @@
 '''
 
 import subprocess, time, traceback, os, stat, threading
+from config import *
 from order import is_constant_order 
-
-LANG_MAPPING = {
-    'PYTHON':   { 'ext': 'py' },
-}
-
-PROB_MAPPING = {
-    'LFU_CACHE': { 
-        'ip':       'problems/lfu_cache/ip_%s.txt',
-        'desop':    'problems/lfu_cache/desop_%s.txt' 
-    }    
-}
 
 class SourceExecProcess(object):
     def __init__(self, timeout, paths, result):
@@ -116,8 +106,10 @@ def run_at_scale(program_id, lang, code_array, problem_id):
         if not io_files:
             raise Exception('Invalid Problem ID: %s' % problem_id)
 
+        lang_conf = LANG_MAPPING[lang]
+
         paths = {
-            'src_file_path': '%s/program_%s.%s' % (root_file_dir, program_id, LANG_MAPPING[lang]['ext']),
+            'src_file_path': '%s/program_%s.%s' % (root_file_dir, program_id, lang_conf['ext']),
             'ip_file_path': io_files['ip'],
             'actop_file_path': '%s/output_%s.txt' % (root_file_dir, program_id),
             'desop_file_path': io_files['desop']
@@ -126,7 +118,7 @@ def run_at_scale(program_id, lang, code_array, problem_id):
 
         # Write lines of code to a file in /tmp directory
         with open(src_file_path, 'w') as cfn:
-            cfn.write('#!/usr/bin/env python\n')
+            cfn.write('#!/usr/bin/env %s\n' % lang_conf['command'])
             for line in code_array:
                 cfn.write(line + '\n')
 
