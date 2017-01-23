@@ -20,7 +20,7 @@ New problems can be added to the `src/problems/` dir. Steps to create a new prob
 follows:
 
 1. Create a new folder under `src/problems/`.
-2. Add the `input_*scale*.txt` and `desop_*scale*.txt` files where *scale* can vary as per
+2. Add the `input_scale.txt` and `desop_scale.txt` files where *scale* can vary as per
    requirements.
 3. Register the new problem with the service by adding it to the `PROB_MAPPING` in `src/config.py`.
 4. Restart the service for it to take effect.
