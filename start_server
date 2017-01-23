@@ -1,0 +1,3 @@
+#!/bin/bash
+pushd src
+gunicorn -w 10 --timeout=120 -b localhost:5000 service:app

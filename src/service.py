@@ -27,15 +27,20 @@ def _error_internalerr(message='Internal Server Error'):
 @app.route('/evaluate', methods=['POST'])
 def evaluate():
     req_data = request.get_json(silent=True)
-   
-    code_array = req_data.get('code')
-    lang = req_data.get('lang')
-    
-    if not code_array or not lang or len(code_array) > app.config.get('MAX_CODE_LINES'):
+  
+    try:
+        code_array = req_data.pop('code')
+        lang = req_data.pop('lang')
+        problem_id = req_data.pop('problem_id')
+    except KeyError:
+        return _error_badrequest()
+
+    if len(code_array) > app.config.get('MAX_CODE_LINES'):
         return _error_badrequest()
    
     program_id = str(random.random()*10000000)
     lang = lang.upper()
   
-    result = rct.run_at_scale(program_id, lang, code_array)
+    result = rct.run_at_scale(program_id, lang, code_array, problem_id)
     return _success_ok(json.dumps({'result': result }))
+

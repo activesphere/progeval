@@ -1,4 +1,5 @@
 '''
+
     Program to evaluate the runtime complexity of a program
     by giving progressive inputs.
 
@@ -8,48 +9,77 @@
 
 '''
 
-import subprocess, time, traceback, os, stat
+import subprocess, time, traceback, os, stat, threading
 from order import is_constant_order 
 
 LANG_MAPPING = {
     'PYTHON':   { 'ext': 'py' },
 }
 
-def create_io_files(paths, scale):
-    ip_file_path = paths['ip_file_path']
-    actop_file_path = paths['actop_file_path']
-    desop_file_path = paths['desop_file_path']
+PROB_MAPPING = {
+    'LFU_CACHE': { 
+        'ip':       'problems/lfu_cache/ip_%s.txt',
+        'desop':    'problems/lfu_cache/desop_%s.txt' 
+    }    
+}
 
-    with open(ip_file_path,'w') as ipf, open(desop_file_path,'w') as dopf:
-        for i in range(scale):
-            ipf.write('PUT %s %s\n' % (i,i))
-            dopf.write('INSERTED %s\n' % i)
-        for i in range(scale-1, -1, -1):
-            ipf.write('GET %s\n' % i)
-            dopf.write('%s\n' % i)
-        ipf.write('\n')
-        dopf.write('\n')
+class SourceExecProcess(object):
+    def __init__(self, timeout, paths, result):
+        self.timeout = timeout
+        self.src_file_path = paths.pop('src_file_path')
+        self.ip_file_path = paths.pop('ip_file_path')
+        self.actop_file_path = paths.pop('actop_file_path')
+        self.desop_file_path = paths.pop('desop_file_path')
+        self.result = result
+        self.proc = None
+
+    def run(self):
         
-    with open(actop_file_path, 'w'):
-            pass
+        def thread_func():
+            with open(self.ip_file_path) as ip_file, open(self.actop_file_path, 'w') as actop_file,\
+                open(self.desop_file_path) as desop_file:
+                
+                self.proc = subprocess.Popen(['%s' % self.src_file_path], stdout=actop_file, stdin=ip_file)
+                bef_time = time.time()
+                data, err = self.proc.communicate()
+                aft_time = time.time()
+                self.result.extend([aft_time - bef_time])
+                print self.result
+
+        thread = threading.Thread(target=thread_func)
+        thread.start()
+        thread.join(self.timeout)
+
+        if thread.is_alive():
+            if self.proc:
+                self.proc.kill()
+            thread.join()
+            self.result.extend([self.timeout + 1])
+
+class SourceTimeoutException(Exception):
+    pass
 
 def eval_program(paths, scale):
     src_file_path = paths['src_file_path']
-    ip_file_path = paths['ip_file_path']
+    ip_file_path = paths['ip_file_path'] % scale
     actop_file_path = paths['actop_file_path']
-    desop_file_path = paths['desop_file_path']
+    desop_file_path = paths['desop_file_path'] % scale
 
-    create_io_files(paths, scale)
+    scale_paths = {
+        'src_file_path': src_file_path,
+        'ip_file_path': ip_file_path,
+        'actop_file_path': actop_file_path,
+        'desop_file_path': desop_file_path
+    }
 
-    with open(ip_file_path) as ip_file, open(actop_file_path, 'w+') as actop_file, open(desop_file_path) as desop_file:
-        proc = subprocess.Popen(['%s' % src_file_path], stdout=actop_file, stdin=ip_file)
+    runtime, timeout = [], 30
+    SourceExecProcess(timeout=timeout, paths=scale_paths, result=runtime).run()
+    runtime = runtime[0]
+    print 'Runtime: %s' % runtime
+
+    if runtime > timeout:
+        raise SourceTimeoutException('Time Limit Exceeded')
         
-        bef_time = time.time()
-        proc.communicate()
-        proc.wait()
-        aft_time = time.time()
-        run_time = aft_time - bef_time
-    
     with open(actop_file_path) as actop_file, open(desop_file_path) as desop_file:
         matched = True
 
@@ -65,9 +95,9 @@ def eval_program(paths, scale):
                 matched = False
                 break
 
-        result = 'Correct' if matched else 'Incorrect'
+        result = True if matched else False
 
-        return result, run_time
+        return result, runtime
 
 def dy_by_dx(results):
     delta = []
@@ -77,15 +107,20 @@ def dy_by_dx(results):
         delta.append(dy/dx)
     return delta
 
-def run_at_scale(program_id, lang, code_array):
+def run_at_scale(program_id, lang, code_array, problem_id):
     try:
         # Interpolate the files' paths
         root_file_dir = '/tmp'
+        io_files = PROB_MAPPING[problem_id]
+
+        if not io_files:
+            raise Exception('Invalid Problem ID: %s' % problem_id)
+
         paths = {
             'src_file_path': '%s/program_%s.%s' % (root_file_dir, program_id, LANG_MAPPING[lang]['ext']),
-            'ip_file_path': '%s/input_%s.txt' % (root_file_dir, program_id),
+            'ip_file_path': io_files['ip'],
             'actop_file_path': '%s/output_%s.txt' % (root_file_dir, program_id),
-            'desop_file_path': '%s/desired_output_%s.txt' % (root_file_dir, program_id)
+            'desop_file_path': io_files['desop']
         }
         src_file_path = paths['src_file_path']
 
@@ -104,22 +139,29 @@ def run_at_scale(program_id, lang, code_array):
         scale = 10
 
         # Record the scale and corresponding run times
-        results = []
+        final_answer = True
+        runtime_series = []
         while scale <= max_scale:
-            result, run_time = eval_program(paths, scale)
-            print '%s\t\t%s\t\t%s' % (result, scale, run_time)
-            results.append([scale, run_time])
+            result, runtime = eval_program(paths, scale)
+            #print '%s\t\t%s\t\t%s' % (result, scale, runtime)
+            final_answer &= result
+            runtime_series.append([scale, runtime])
             scale *= 10
-        
-        delta = dy_by_dx(results)
+
+        if not final_answer:
+            return 'Rejected, Wrong Answer.'
+
+        delta = dy_by_dx(runtime_series)
 
         # We assume a tolerance of 2 for the order.
         constant_order = is_constant_order(delta, tolerance=2)
         if constant_order:
-            return 'ACCEPTED'
+            return 'Accepted'
         else:
-            return 'REJECTED'
+            return 'Rejected, Exceeds Time Complexity. We Expect O(1).'
+    except SourceTimeoutException:
+        return 'Rejected, Takes too long to execute.'
     except Exception, ex:
         print traceback.format_exc() 
-        return 'REJECTED'
+        return 'Rejected, Your Program crashed very badly.'
 
