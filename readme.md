@@ -1,7 +1,7 @@
 **Program Evaluator**
 ==================
 
-Source Code Evaluation Service, to accept or reject a solution on the activesphere.com/careers page.
+Source Code Evaluation Service, to accept or reject a solution on the http://activesphere.com/careers page.
 
 Installation
 --------------
