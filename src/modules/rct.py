@@ -9,47 +9,47 @@
 
 '''
 
-import subprocess, time, traceback, os, stat, threading
+import subprocess, time, traceback, os, stat, signal
 from config import *
 from order import is_constant_order 
 
+class AlarmTimeoutException(Exception):
+    pass
+
+class SourceTimeoutException(Exception):
+    pass
+
+def alarm_timeout_handler(signum, frame):
+    raise AlarmTimeoutException()
+
 class SourceExecProcess(object):
-    def __init__(self, timeout, paths, result):
+    def __init__(self, timeout, paths):
         self.timeout = timeout
         self.src_file_path = paths.pop('src_file_path')
         self.ip_file_path = paths.pop('ip_file_path')
         self.actop_file_path = paths.pop('actop_file_path')
         self.desop_file_path = paths.pop('desop_file_path')
-        self.result = result
-        self.proc = None
+        self.subproc = None
 
-    def run(self):
-        
-        def thread_func():
-            with open(self.ip_file_path) as ip_file, open(self.actop_file_path, 'w') as actop_file,\
-                open(self.desop_file_path) as desop_file:
-                
-                self.proc = subprocess.Popen(['%s' % self.src_file_path], stdout=actop_file, stdin=ip_file)
+    def run(self): 
+        with open(self.ip_file_path) as ip_file, open(self.actop_file_path, 'w') as actop_file,\
+            open(self.desop_file_path) as desop_file:
+          
+            try:
+                signal.signal(signal.SIGALRM, alarm_timeout_handler)
+                self.subproc = subprocess.Popen(['%s' % self.src_file_path], stdout=actop_file, stdin=ip_file)
+                signal.alarm(self.timeout)
                 bef_time = time.time()
-                data, err = self.proc.communicate()
+                data, err = self.subproc.communicate()
                 aft_time = time.time()
-                self.result.extend([aft_time - bef_time])
-                print self.result
+                result = aft_time - bef_time
+            except AlarmTimeoutException:
+                result = -1
+            finally:
+                signal.alarm(0)
+                return result
 
-        thread = threading.Thread(target=thread_func)
-        thread.start()
-        thread.join(self.timeout)
-
-        if thread.is_alive():
-            if self.proc:
-                self.proc.kill()
-            thread.join()
-            self.result.extend([self.timeout + 1])
-
-class SourceTimeoutException(Exception):
-    pass
-
-def eval_program(paths, scale):
+def eval_program(paths, scale, timeout):
     src_file_path = paths['src_file_path']
     ip_file_path = paths['ip_file_path'] % scale
     actop_file_path = paths['actop_file_path']
@@ -62,13 +62,11 @@ def eval_program(paths, scale):
         'desop_file_path': desop_file_path
     }
 
-    runtime, timeout = [], 30
-    SourceExecProcess(timeout=timeout, paths=scale_paths, result=runtime).run()
-    runtime = runtime[0]
-    print 'Runtime: %s' % runtime
+    runtime = SourceExecProcess(timeout=timeout, paths=scale_paths).run()
+    print 'source exec process returned. runtime: %s' % runtime
 
-    if runtime > timeout:
-        raise SourceTimeoutException('Time Limit Exceeded')
+    if runtime == -1:
+        raise SourceTimeoutException()
         
     with open(actop_file_path) as actop_file, open(desop_file_path) as desop_file:
         matched = True
@@ -101,18 +99,18 @@ def run_at_scale(program_id, lang, code_array, problem_id):
     try:
         # Interpolate the files' paths
         root_file_dir = '/tmp'
-        io_files = PROB_MAPPING[problem_id]
+        problem = PROB_MAPPING[problem_id]
 
-        if not io_files:
+        if not problem:
             raise Exception('Invalid Problem ID: %s' % problem_id)
 
         lang_conf = LANG_MAPPING[lang]
 
         paths = {
             'src_file_path': '%s/program_%s.%s' % (root_file_dir, program_id, lang_conf['ext']),
-            'ip_file_path': io_files['ip'],
+            'ip_file_path': problem['ip'],
             'actop_file_path': '%s/output_%s.txt' % (root_file_dir, program_id),
-            'desop_file_path': io_files['desop']
+            'desop_file_path': problem['desop']
         }
         src_file_path = paths['src_file_path']
 
@@ -130,11 +128,14 @@ def run_at_scale(program_id, lang, code_array, problem_id):
         max_scale = 1000000
         scale = 10
 
+        # Get the Timeout in sec.
+        timeout = problem['timeout']
+
         # Record the scale and corresponding run times
         final_answer = True
         runtime_series = []
         while scale <= max_scale:
-            result, runtime = eval_program(paths, scale)
+            result, runtime = eval_program(paths, scale, timeout)
             #print '%s\t\t%s\t\t%s' % (result, scale, runtime)
             final_answer &= result
             runtime_series.append([scale, runtime])

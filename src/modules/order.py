@@ -11,9 +11,7 @@ def is_constant_order(nums, tolerance):
     for num in nums:
         if num < 0:
             return False
-        if num == 0:
-            order[num] = 0
-        if num == 1:
+        if num == 0 or num == 1:
             order[num] = 0
         if num < 1:
             e = 0
