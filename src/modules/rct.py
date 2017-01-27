@@ -34,7 +34,9 @@ class SourceExecProcess(object):
     def run(self): 
         with open(self.ip_file_path) as ip_file, open(self.actop_file_path, 'w') as actop_file,\
             open(self.desop_file_path) as desop_file:
-          
+            
+            result = -1
+
             try:
                 signal.signal(signal.SIGALRM, alarm_timeout_handler)
                 self.subproc = subprocess.Popen(['%s' % self.src_file_path], stdout=actop_file, stdin=ip_file)
@@ -44,7 +46,8 @@ class SourceExecProcess(object):
                 aft_time = time.time()
                 result = aft_time - bef_time
             except AlarmTimeoutException:
-                result = -1
+                if self.subproc:
+                    self.subproc.terminate()
             finally:
                 signal.alarm(0)
                 return result
