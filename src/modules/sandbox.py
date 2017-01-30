@@ -1,4 +1,5 @@
 import docker, os
+from requests.exceptions import ReadTimeout
 
 class Sandbox(object):
     def __init__(self, src_file_path, ip_file_path):
@@ -16,9 +17,14 @@ class Sandbox(object):
             }, mem_limit='1g'))
 
         self.client.start(self.container)
-        self.client.wait(self.container, timeout=timeout)
-        logs = self.client.logs(self.container, stdout=True, stderr=True, tail='all', stream=True)
-        return logs
+        
+        try:
+            self.client.wait(self.container, timeout=timeout)
+            logs = self.client.logs(self.container, stdout=True, stderr=True, tail='all', stream=True)
+            return logs
+        except ReadTimeout:
+            self.client.remove_container(self.container, force=True)
+            return None
 
     def close(self):
        self.client.remove_container(self.container) 

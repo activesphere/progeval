@@ -1,4 +1,4 @@
 #!/bin/bash
 source bin/activate
 pushd src
-gunicorn -w 10 --timeout=300 -b localhost:5000 service:app
+gunicorn -w 10 --timeout=1800 -b localhost:5000 service:app

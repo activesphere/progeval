@@ -12,8 +12,9 @@
 import time, traceback, stat, os, sandbox
 from config import *
 from order import is_constant_order 
-from requests.exceptions import ReadTimeout
 
+class SourceTimeoutException(Exception):
+    pass
 
 def eval_program(paths, scale, timeout):
     src_file_path = paths['src_file_path']
@@ -32,6 +33,9 @@ def eval_program(paths, scale, timeout):
     sb = sandbox.Sandbox(src_file_path, ip_file_path)
     actop_gen = sb.run(scale, timeout)
     aft_time = time.time()
+
+    if actop_gen is None:
+        raise SourceTimeoutException()
 
     runtime = aft_time - bef_time
     print 'source exec process returned. runtime: %s' % runtime
@@ -131,7 +135,7 @@ def run_at_scale(program_id, lang, code_array, problem_id):
             return 'Accepted'
         else:
             return 'Rejected, Exceeds Time Complexity. We Expect O(1).'
-    except ReadTimeout:
+    except SourceTimeoutException:
         return 'Rejected, Takes too long to execute.'
     except Exception, ex:
         print traceback.format_exc() 

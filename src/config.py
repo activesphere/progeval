@@ -12,6 +12,6 @@ PROB_MAPPING = {
     'LFU_CACHE': { 
         'ip':       'problems/lfu_cache/ip_%s.txt',
         'desop':    'problems/lfu_cache/desop_%s.txt',
-        'timeout':  300
+        'timeout':  100
     }    
 }
