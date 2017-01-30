@@ -14,7 +14,7 @@ class Sandbox(object):
             host_config=self.client.create_host_config(binds={ 
                 self.src_dir_path: {'bind': '/src/', 'mode': 'ro'},
                 self.ip_dir_path: {'bind': '/ip/', 'mode': 'ro'},
-            }, mem_limit='1g'))
+            }, mem_limit='512m'))
 
         self.client.start(self.container)
         
