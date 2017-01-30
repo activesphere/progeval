@@ -38,7 +38,7 @@ def evaluate():
     if len(code_array) > app.config.get('MAX_CODE_LINES'):
         return _error_badrequest()
    
-    program_id = str(random.random()*10000000)
+    program_id = str(int(random.random()*10000000))
     lang = lang.upper()
   
     result = rct.run_at_scale(program_id, lang, code_array, problem_id)
